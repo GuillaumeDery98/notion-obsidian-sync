@@ -1,0 +1,9 @@
+obsidian:
+  vault_path: "../../obsidian"
+
+notion:
+  databases:
+    areas: "deb9c92e8cb24f5cb1c24fbf61287e43"
+    projets: "1a423b80d7344b2b8baafa274e86283b"
+    taches: "31b68381b1d5465eb944ce92b670bd69"
+    ressources: "d16dcb03940f4732a4e377362328f1e7"

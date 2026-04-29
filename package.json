@@ -1,0 +1,24 @@
+{
+  "name": "notion-obsidian-sync",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "sync": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
