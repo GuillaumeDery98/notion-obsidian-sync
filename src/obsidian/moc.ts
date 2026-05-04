@@ -1,67 +1,70 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { DATABASE_FOLDERS, TYPE_TO_FOLDER } from '../types.js';
+import { DATABASE_FOLDERS } from '../types.js';
 import { buildFileContent } from './frontmatter.js';
 
 const FOLDER_MOC_ORDER = ['Areas', 'Projets', 'Ressources', 'Tâches'];
 
 export async function generateMocNotes(vaultPath: string): Promise<void> {
   const folderNames = Object.values(DATABASE_FOLDERS);
-  const mocLinks: Record<string, string[]> = {};
 
   for (const folder of folderNames) {
     const folderPath = path.join(vaultPath, folder);
-    const children = await collectChildren(folderPath, folder);
-    mocLinks[folder] = children;
-  }
-
-  await generateSubfolderMocs(vaultPath, 'Ressources');
-
-  for (const [folder, children] of Object.entries(mocLinks)) {
-    let content: string;
 
     if (folder === 'Ressources') {
-      content = await buildRessourcesMocContent(vaultPath, children);
+      const content = await buildRessourcesMocContent(vaultPath);
+      await writeMocFile(vaultPath, `${folder}/${folder}.md`, folder, content, { up: '[[PARA]]' });
     } else {
-      content = children
+      const children = await collectChildren(folderPath, folder);
+      const content = children
         .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
         .map(name => `- [[${name}]]`)
         .join('\n');
+      await writeMocFile(vaultPath, `${folder}/${folder}.md`, folder, content, { up: '[[PARA]]' });
     }
-
-    await writeMocFile(
-      vaultPath,
-      `${folder}/${folder}.md`,
-      folder,
-      content,
-      { up: '[[PARA]]' }
-    );
   }
 
   await generateParaMoc(vaultPath);
+
+  await cleanupSubfolderMocs(vaultPath);
 }
 
-async function buildRessourcesMocContent(
-  vaultPath: string,
-  directChildren: string[]
-): Promise<string> {
-  const subfolderLinks = await getSubfolderMocLinks(vaultPath, 'Ressources');
-  const subfolderSet = new Set(subfolderLinks);
+async function buildRessourcesMocContent(vaultPath: string): Promise<string> {
+  const ressourcesPath = path.join(vaultPath, 'Ressources');
+  const sections: string[] = [];
 
-  const subfolderSection = subfolderLinks
-    .map(name => `- [[${name}]]`)
-    .join('\n');
+  const subfolders = await getSubfoldersWithFiles(ressourcesPath);
 
-  const filesOnly = directChildren.filter(name => !subfolderSet.has(name));
-  const filesSection = filesOnly
-    .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
-    .map(name => `- [[${name}]]`)
-    .join('\n');
+  for (const sub of subfolders) {
+    const subPath = path.join(ressourcesPath, sub);
+    const files = await collectDirectFiles(subPath, sub);
+    if (files.length === 0) continue;
 
-  const parts: string[] = [];
-  if (subfolderSection) parts.push(subfolderSection);
-  if (filesSection) parts.push(filesSection);
-  return parts.join('\n');
+    const sorted = files.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    sections.push(`## ${sub}\n\n${sorted.map(f => `- [[${f}]]`).join('\n')}`);
+  }
+
+  const rootFiles = await collectDirectFiles(ressourcesPath, 'Ressources');
+  if (rootFiles.length > 0) {
+    const sorted = rootFiles.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    sections.push(`## Autres\n\n${sorted.map(f => `- [[${f}]]`).join('\n')}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+async function getSubfoldersWithFiles(dirPath: string): Promise<string[]> {
+  const names: string[] = [];
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      names.push(entry.name);
+    }
+  } catch {
+    // ignore
+  }
+  return names.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 }
 
 async function collectChildren(
@@ -69,13 +72,11 @@ async function collectChildren(
   parentFolder: string
 ): Promise<string[]> {
   const names: string[] = [];
-
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name.startsWith('.')) continue;
       if (entry.name === `${parentFolder}.md`) continue;
-
       if (entry.isFile() && entry.name.endsWith('.md')) {
         names.push(path.basename(entry.name, '.md'));
       } else if (entry.isDirectory()) {
@@ -85,7 +86,6 @@ async function collectChildren(
   } catch {
     // directory doesn't exist yet
   }
-
   return names;
 }
 
@@ -94,13 +94,11 @@ async function collectDirectFiles(
   parentFolder: string
 ): Promise<string[]> {
   const names: string[] = [];
-
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name.startsWith('.')) continue;
       if (entry.name === `${parentFolder}.md`) continue;
-
       if (entry.isFile() && entry.name.endsWith('.md')) {
         names.push(path.basename(entry.name, '.md'));
       }
@@ -108,67 +106,31 @@ async function collectDirectFiles(
   } catch {
     // directory doesn't exist yet
   }
-
   return names;
 }
 
-async function generateSubfolderMocs(vaultPath: string, parentFolder: string): Promise<void> {
-  const parentPath = path.join(vaultPath, parentFolder);
-
+async function cleanupSubfolderMocs(vaultPath: string): Promise<void> {
+  const ressourcesPath = path.join(vaultPath, 'Ressources');
   try {
-    const entries = await fs.readdir(parentPath, { withFileTypes: true });
-
+    const entries = await fs.readdir(ressourcesPath, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-
-      const subfolderPath = path.join(parentPath, entry.name);
-      const files = await collectDirectFiles(subfolderPath, entry.name);
-
-      if (files.length === 0) continue;
-
-      const content = files
-        .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
-        .map(name => `- [[${name}]]`)
-        .join('\n');
-
-      await writeMocFile(
-        vaultPath,
-        `${parentFolder}/${entry.name}/${entry.name}.md`,
-        entry.name,
-        content,
-        { up: `[[${parentFolder}]]` }
-      );
-    }
-  } catch {
-    // directory doesn't exist yet
-  }
-}
-
-async function getSubfolderMocLinks(vaultPath: string, parentFolder: string): Promise<string[]> {
-  const parentPath = path.join(vaultPath, parentFolder);
-  const links: string[] = [];
-
-  try {
-    const entries = await fs.readdir(parentPath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      const subFiles = await fs.readdir(path.join(parentPath, entry.name));
-      if (subFiles.some(f => f.endsWith('.md'))) {
-        links.push(entry.name);
+      const mocPath = path.join(ressourcesPath, entry.name, `${entry.name}.md`);
+      try {
+        await fs.unlink(mocPath);
+      } catch {
+        // doesn't exist, fine
       }
     }
   } catch {
     // ignore
   }
-
-  return links.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 }
 
 async function generateParaMoc(vaultPath: string): Promise<void> {
   const content = FOLDER_MOC_ORDER
     .map(folder => `- [[${folder}]]`)
     .join('\n');
-
   await writeMocFile(vaultPath, 'PARA.md', 'PARA', content);
 }
 
