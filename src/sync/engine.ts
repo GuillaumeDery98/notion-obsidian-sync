@@ -189,24 +189,43 @@ async function processPageFiles(
   };
 }
 
-export async function executeSync(config: SyncConfig): Promise<SyncResult> {
+export type SyncDirection = 'both' | 'notion-to-obsidian' | 'obsidian-to-notion';
+
+export async function executeSync(config: SyncConfig, direction: SyncDirection = 'both'): Promise<SyncResult> {
   const result: SyncResult = { created: 0, updated: 0, deleted: 0, skipped: 0, errors: [] };
 
   const state = await loadState();
   const client = getNotionClient(config.notionApiKey);
 
-  console.log('Fetching Notion pages...');
-  const notionPages = await fetchAllDatabases(client, config.notionDatabases);
-  console.log(`Found ${notionPages.length} Notion pages`);
+  let notionPages: NotionPage[] = [];
+  let obsidianFiles: ObsidianFile[] = [];
+
+  if (direction === 'both' || direction === 'notion-to-obsidian') {
+    console.log('Fetching Notion pages...');
+    notionPages = await fetchAllDatabases(client, config.notionDatabases);
+    console.log(`Found ${notionPages.length} Notion pages`);
+  }
 
   const pageIndex = buildPageIndex(notionPages);
 
-  console.log('Scanning Obsidian vault...');
-  const obsidianFiles = await scanVault(config.obsidianVaultPath);
-  console.log(`Found ${obsidianFiles.length} Obsidian files`);
+  if (direction === 'both' || direction === 'obsidian-to-notion') {
+    console.log('Scanning Obsidian vault...');
+    obsidianFiles = await scanVault(config.obsidianVaultPath);
+    console.log(`Found ${obsidianFiles.length} Obsidian files`);
+  }
 
   const actions = await computeSyncActions(notionPages, obsidianFiles, state, config.obsidianVaultPath);
-  console.log(`Computed ${actions.length} sync actions`);
+
+  const filtered = direction === 'both'
+    ? actions
+    : actions.filter(a => {
+        if (direction === 'notion-to-obsidian') {
+          return a.type === 'create-in-obsidian' || a.type === 'update-in-obsidian' || a.type === 'delete-in-obsidian';
+        }
+        return a.type === 'create-in-notion' || a.type === 'update-in-notion' || a.type === 'archive-in-notion';
+      });
+
+  console.log(`Computed ${filtered.length} sync actions (direction: ${direction})`);
 
   const resolveWikilink = (title: string) => {
     const page = Object.values(state.pages).find(
@@ -215,7 +234,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
     return page?.notionId;
   };
 
-  for (const action of actions) {
+  for (const action of filtered) {
     try {
       switch (action.type) {
         case 'create-in-obsidian': {

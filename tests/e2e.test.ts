@@ -6,7 +6,7 @@ import { buildPageIndex, notionIdsToWikilinks } from '../src/sync/relations.js';
 import { NotionPage, SyncState } from '../src/types.js';
 
 describe('end-to-end sync flow', () => {
-  it('syncs a new Notion page to Obsidian', () => {
+  it('syncs a new Notion page to Obsidian', async () => {
     const notionPage: NotionPage = {
       id: 'task-1',
       database: 'taches',
@@ -31,7 +31,7 @@ describe('end-to-end sync flow', () => {
     expect(actions[0].type).toBe('create-in-obsidian');
 
     const obsPath = getObsidianPathForPage(notionPage);
-    expect(obsPath).toBe('Tâches/Build sync tool.md');
+    expect(obsPath).toBe('PARA/Tâches/Build sync tool.md');
 
     const body = notionToMarkdown(notionPage.blocks);
     expect(body).toContain('Implement bidirectional sync');
@@ -73,7 +73,7 @@ describe('end-to-end sync flow', () => {
     expect(parsed.content).toBe('Body');
   });
 
-  it('detects conflicts with last-modified-wins', () => {
+  it('detects conflicts with last-modified-wins', async () => {
     const state: SyncState = {
       lastSync: '2026-04-29T10:00:00Z',
       pages: {
