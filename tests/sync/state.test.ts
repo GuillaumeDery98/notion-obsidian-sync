@@ -24,7 +24,7 @@ describe('state', () => {
   describe('loadState', () => {
     it('returns empty state when no file exists', async () => {
       const state = await loadState();
-      expect(state).toEqual({ lastSync: '', pages: {} });
+      expect(state).toEqual({ lastSync: '', pages: {}, files: {} });
     });
 
     it('loads existing state from file', async () => {

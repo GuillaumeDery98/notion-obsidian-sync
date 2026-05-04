@@ -61,6 +61,8 @@ export function resolveNotionRelations(
       result[key] = prop.files?.map((f: any) => f.file?.url ?? f.external?.url).filter(Boolean) ?? [];
     } else if (prop.type === 'number') {
       result[key] = prop.number;
+    } else if (prop.type === 'status' && prop.status) {
+      result[key] = prop.status.name;
     }
   }
 

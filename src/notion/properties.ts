@@ -14,7 +14,8 @@ export function extractNotionProperties(
   }
 
   if (database === 'taches') {
-    if (properties.Status?.select?.name) result.status = properties.Status.select.name;
+    if (properties.Status?.status?.name) result.status = properties.Status.status.name;
+    else if (properties.Status?.select?.name) result.status = properties.Status.select.name;
   }
 
   if (database === 'projets') {
