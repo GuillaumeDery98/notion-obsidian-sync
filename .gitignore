@@ -4,3 +4,4 @@ dist/
 sync-state.json
 *.js.map
 .DS_Store
+vault
