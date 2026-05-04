@@ -46,11 +46,14 @@ async function buildRessourcesMocContent(
   directChildren: string[]
 ): Promise<string> {
   const subfolderLinks = await getSubfolderMocLinks(vaultPath, 'Ressources');
+  const subfolderSet = new Set(subfolderLinks);
+
   const subfolderSection = subfolderLinks
     .map(name => `- [[${name}]]`)
     .join('\n');
 
-  const filesSection = directChildren
+  const filesOnly = directChildren.filter(name => !subfolderSet.has(name));
+  const filesSection = filesOnly
     .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
     .map(name => `- [[${name}]]`)
     .join('\n');
