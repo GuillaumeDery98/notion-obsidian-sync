@@ -33,17 +33,17 @@ function makePageState(overrides: Partial<PageState> = {}): PageState {
 describe('computeSyncActions', () => {
   const lastSync = '2026-01-10T00:00:00Z';
 
-  it('creates new Obsidian file for new Notion page', () => {
+  it('creates new Obsidian file for new Notion page', async () => {
     const state: SyncState = { lastSync, pages: {} };
     const notionPages = [makeNotionPage({ id: 'new-1', title: 'New Task' })];
     const obsidianFiles: ObsidianFile[] = [];
 
-    const actions = computeSyncActions(notionPages, obsidianFiles, state);
+    const actions = await computeSyncActions(notionPages, obsidianFiles, state, '/tmp/vault');
     const create = actions.find(a => a.type === 'create-in-obsidian' && a.notionId === 'new-1');
     expect(create).toBeDefined();
   });
 
-  it('updates Obsidian when Notion page is newer', () => {
+  it('updates Obsidian when Notion page is newer', async () => {
     const state: SyncState = {
       lastSync,
       pages: {
@@ -53,12 +53,12 @@ describe('computeSyncActions', () => {
     const notionPages = [makeNotionPage({ lastEditedTime: '2026-01-15T00:00:00Z' })];
     const obsidianFiles: ObsidianFile[] = [];
 
-    const actions = computeSyncActions(notionPages, obsidianFiles, state);
+    const actions = await computeSyncActions(notionPages, obsidianFiles, state, '/tmp/vault');
     const update = actions.find(a => a.type === 'update-in-obsidian' && a.notionId === 'p1');
     expect(update).toBeDefined();
   });
 
-  it('updates Notion when Obsidian file is newer than last sync', () => {
+  it('updates Notion when Obsidian file is newer than last sync', async () => {
     const state: SyncState = {
       lastSync,
       pages: {
@@ -69,18 +69,18 @@ describe('computeSyncActions', () => {
     const obsidianFiles: ObsidianFile[] = [
       {
         path: 'Tâches/Test.md',
-        frontmatter: { notion_id: 'p1', database: 'taches' },
+        frontmatter: { notion_id: 'p1', database: 'taches', derniere_modification: '2026-01-12T00:00:00Z' },
         content: 'Updated',
         database: 'taches',
       },
     ];
 
-    const actions = computeSyncActions(notionPages, obsidianFiles, state);
+    const actions = await computeSyncActions(notionPages, obsidianFiles, state, '/tmp/vault');
     const update = actions.find(a => a.type === 'update-in-notion' && a.notionId === 'p1');
     expect(update).toBeDefined();
   });
 
-  it('deletes Obsidian file when Notion page is archived', () => {
+  it('deletes Obsidian file when Notion page is archived', async () => {
     const state: SyncState = {
       lastSync,
       pages: {
@@ -90,7 +90,7 @@ describe('computeSyncActions', () => {
     const notionPages: NotionPage[] = [];
     const obsidianFiles: ObsidianFile[] = [];
 
-    const actions = computeSyncActions(notionPages, obsidianFiles, state);
+    const actions = await computeSyncActions(notionPages, obsidianFiles, state, '/tmp/vault');
     const del = actions.find(a => a.type === 'delete-in-obsidian' && a.notionId === 'p1');
     expect(del).toBeDefined();
     if (del && del.type === 'delete-in-obsidian') {
@@ -98,7 +98,7 @@ describe('computeSyncActions', () => {
     }
   });
 
-  it('creates Notion page for new Obsidian file without notion_id', () => {
+  it('creates Notion page for new Obsidian file without notion_id', async () => {
     const state: SyncState = { lastSync, pages: {} };
     const notionPages: NotionPage[] = [];
     const obsidianFiles: ObsidianFile[] = [
@@ -110,12 +110,12 @@ describe('computeSyncActions', () => {
       },
     ];
 
-    const actions = computeSyncActions(notionPages, obsidianFiles, state);
+    const actions = await computeSyncActions(notionPages, obsidianFiles, state, '/tmp/vault');
     const create = actions.find(a => a.type === 'create-in-notion' && a.path === 'Tâches/New task.md');
     expect(create).toBeDefined();
   });
 
-  it('skips when both sides are unchanged', () => {
+  it('skips when both sides are unchanged', async () => {
     const state: SyncState = {
       lastSync,
       pages: {
@@ -125,7 +125,7 @@ describe('computeSyncActions', () => {
     const notionPages = [makeNotionPage({ lastEditedTime: '2026-01-09T00:00:00Z' })];
     const obsidianFiles: ObsidianFile[] = [];
 
-    const actions = computeSyncActions(notionPages, obsidianFiles, state);
+    const actions = await computeSyncActions(notionPages, obsidianFiles, state, '/tmp/vault');
     const relevant = actions.filter(a => {
       if ('notionId' in a) return a.notionId === 'p1';
       return false;

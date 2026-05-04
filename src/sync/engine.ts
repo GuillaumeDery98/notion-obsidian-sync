@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs/promises';
 import {
   NotionPage,
   ObsidianFile,
@@ -29,11 +30,12 @@ export type SyncAction =
   | { type: 'delete-in-obsidian'; notionId: string; obsidianPath: string }
   | { type: 'archive-in-notion'; notionId: string };
 
-export function computeSyncActions(
+export async function computeSyncActions(
   notionPages: NotionPage[],
   obsidianFiles: ObsidianFile[],
-  state: SyncState
-): SyncAction[] {
+  state: SyncState,
+  vaultPath: string
+): Promise<SyncAction[]> {
   const actions: SyncAction[] = [];
   const lastSync = state.lastSync;
   const syncedNotionIds = new Set<string>();
@@ -74,8 +76,21 @@ export function computeSyncActions(
     if (notionId) {
       const pageState = state.pages[notionId];
       if (pageState && lastSync) {
-        const obsidianMtime = file.frontmatter?.derniere_modification as string | undefined;
-        if (!obsidianMtime || obsidianMtime > pageState.lastSync) {
+        const fmTime = file.frontmatter?.derniere_modification as string | undefined;
+        let modified = false;
+
+        if (fmTime) {
+          modified = fmTime > pageState.lastSync;
+        } else {
+          try {
+            const stat = await fs.stat(path.join(vaultPath, file.path));
+            modified = stat.mtime.toISOString() > pageState.lastSync;
+          } catch {
+            modified = true;
+          }
+        }
+
+        if (modified) {
           const alreadyUpdatingFromNotion = actions.some(a => {
             if (a.type !== 'update-in-obsidian') return false;
             return a.notionId === notionId;
@@ -138,7 +153,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
   const obsidianFiles = await scanVault(config.obsidianVaultPath);
   console.log(`Found ${obsidianFiles.length} Obsidian files`);
 
-  const actions = computeSyncActions(notionPages, obsidianFiles, state);
+  const actions = await computeSyncActions(notionPages, obsidianFiles, state, config.obsidianVaultPath);
   console.log(`Computed ${actions.length} sync actions`);
 
   const resolveWikilink = (title: string) => {
@@ -158,6 +173,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           fm.notion_id = page.id;
           fm.database = page.database;
           fm.title = page.title;
+          fm.derniere_modification = page.lastEditedTime;
           let body = notionToMarkdown(page.blocks);
           if (page.title.length > MAX_FILENAME_LENGTH) {
             body = `# ${page.title}\n\n${body}`;
@@ -196,6 +212,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           fm.notion_id = page.id;
           fm.database = page.database;
           fm.title = page.title;
+          fm.derniere_modification = page.lastEditedTime;
           let body = notionToMarkdown(page.blocks);
           if (page.title.length > MAX_FILENAME_LENGTH) {
             body = `# ${page.title}\n\n${body}`;

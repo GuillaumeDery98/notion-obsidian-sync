@@ -26,7 +26,7 @@ describe('end-to-end sync flow', () => {
     };
 
     const state: SyncState = { lastSync: '', pages: {} };
-    const actions = computeSyncActions([notionPage], [], state);
+    const actions = await computeSyncActions([notionPage], [], state, '/tmp/vault');
     expect(actions).toHaveLength(1);
     expect(actions[0].type).toBe('create-in-obsidian');
 
@@ -103,7 +103,7 @@ describe('end-to-end sync flow', () => {
       },
     ];
 
-    const actions = computeSyncActions(newerNotion, [], state);
+    const actions = await computeSyncActions(newerNotion, [], state, '/tmp/vault');
     expect(actions.find(a => a.type === 'update-in-obsidian')).toBeDefined();
     expect(actions.find(a => a.type === 'update-in-notion')).toBeUndefined();
   });
