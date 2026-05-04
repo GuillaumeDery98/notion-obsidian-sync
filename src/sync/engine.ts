@@ -289,5 +289,9 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
   state.lastSync = new Date().toISOString();
   await saveState(state);
 
+  console.log('Generating MOC notes...');
+  const { generateMocNotes } = await import('../obsidian/moc.js');
+  await generateMocNotes(config.obsidianVaultPath);
+
   return result;
 }
