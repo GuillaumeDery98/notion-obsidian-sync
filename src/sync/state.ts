@@ -6,9 +6,10 @@ const STATE_FILE = 'sync-state.json';
 export async function loadState(): Promise<SyncState> {
   try {
     const raw = await fs.readFile(STATE_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const state = JSON.parse(raw);
+    return { files: {}, ...state };
   } catch {
-    return { lastSync: '', pages: {} };
+    return { lastSync: '', pages: {}, files: {} };
   }
 }
 

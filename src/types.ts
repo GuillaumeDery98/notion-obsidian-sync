@@ -38,6 +38,13 @@ export interface ObsidianFile {
 export interface SyncState {
   lastSync: string;
   pages: Record<string, PageState>;
+  files: Record<string, FileInfo>;
+}
+
+export interface FileInfo {
+  notionPageId: string;
+  originalUrl: string;
+  downloadedAt: string;
 }
 
 export interface PageState {
