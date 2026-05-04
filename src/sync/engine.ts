@@ -11,6 +11,7 @@ import {
   SyncError,
   TYPE_TO_FOLDER,
   DATABASE_FOLDERS,
+  STATUS_FOLDERS,
 } from '../types.js';
 import { getNotionClient } from '../notion/client.js';
 import { fetchAllDatabases } from '../notion/fetch.js';
@@ -125,13 +126,18 @@ function truncateTitle(title: string): string {
   return sanitized.substring(0, MAX_FILENAME_LENGTH).trimEnd();
 }
 
-export function getObsidianPathForPage(page: NotionPage, type?: string): string {
+export function getObsidianPathForPage(page: NotionPage, type?: string, status?: string): string {
   const folder = DATABASE_FOLDERS[page.database];
   const safeTitle = truncateTitle(page.title);
 
   if (page.database === 'ressources' && type) {
     const subfolder = TYPE_TO_FOLDER[type] || type;
     return `${folder}/${subfolder}/${safeTitle}.md`;
+  }
+
+  if (page.database === 'taches' && status) {
+    const statusFolder = STATUS_FOLDERS[status] || status;
+    return `${folder}/${statusFolder}/${safeTitle}.md`;
   }
 
   return `${folder}/${safeTitle}.md`;
@@ -169,6 +175,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
         case 'create-in-obsidian': {
           const page = action.page;
           const type = page.database === 'ressources' ? extractType(page.properties) : undefined;
+          const status = page.database === 'taches' ? page.properties.Status?.select?.name : undefined;
           const fm = extractNotionProperties(page.properties, page.database, pageIndex);
           fm.notion_id = page.id;
           fm.database = page.database;
@@ -178,7 +185,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           if (page.title.length > MAX_FILENAME_LENGTH) {
             body = `# ${page.title}\n\n${body}`;
           }
-          const obsPath = getObsidianPathForPage(page, type);
+          const obsPath = getObsidianPathForPage(page, type, status);
 
           await writeObsidianFile(config.obsidianVaultPath, {
             path: obsPath,
@@ -207,6 +214,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
         case 'update-in-obsidian': {
           const page = action.page;
           const type = page.database === 'ressources' ? extractType(page.properties) : undefined;
+          const status = page.database === 'taches' ? page.properties.Status?.select?.name : undefined;
           const existingState = state.pages[page.id];
           const fm = extractNotionProperties(page.properties, page.database, pageIndex);
           fm.notion_id = page.id;
@@ -217,7 +225,7 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           if (page.title.length > MAX_FILENAME_LENGTH) {
             body = `# ${page.title}\n\n${body}`;
           }
-          const obsPath = getObsidianPathForPage(page, type);
+          const obsPath = getObsidianPathForPage(page, type, status);
 
           await writeObsidianFile(config.obsidianVaultPath, {
             path: obsPath,

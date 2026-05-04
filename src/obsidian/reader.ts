@@ -16,7 +16,7 @@ async function walkDir(dir: string, vaultPath: string, files: ObsidianFile[]): P
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      if (entry.name === '.obsidian' || entry.name === '.trash') continue;
+      if (entry.name === '.obsidian' || entry.name === '.trash' || entry.name === 'AI') continue;
       await walkDir(fullPath, vaultPath, files);
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
       const raw = await fs.readFile(fullPath, 'utf-8');
@@ -45,9 +45,13 @@ export async function readFile(fullPath: string): Promise<ObsidianFile> {
 }
 
 function detectDatabase(relativePath: string): DatabaseType | undefined {
-  const topFolder = relativePath.split(path.sep)[0];
+  const parts = relativePath.split(path.sep);
   for (const [dbType, folder] of Object.entries(DATABASE_FOLDERS)) {
-    if (topFolder === folder) return dbType as DatabaseType;
+    const folderParts = folder.split('/');
+    if (parts.length >= folderParts.length) {
+      const match = folderParts.every((part, i) => parts[i] === part);
+      if (match) return dbType as DatabaseType;
+    }
   }
   return undefined;
 }

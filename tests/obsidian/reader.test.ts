@@ -9,24 +9,24 @@ describe('scanVault', () => {
 
   beforeEach(async () => {
     vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vault-'));
-    await fs.mkdir(path.join(vaultDir, 'Tâches'), { recursive: true });
-    await fs.mkdir(path.join(vaultDir, 'Projets'), { recursive: true });
-    await fs.mkdir(path.join(vaultDir, 'Ressources', 'Recettes'), { recursive: true });
+    await fs.mkdir(path.join(vaultDir, 'PARA', 'Tâches'), { recursive: true });
+    await fs.mkdir(path.join(vaultDir, 'PARA', 'Projets'), { recursive: true });
+    await fs.mkdir(path.join(vaultDir, 'PARA', 'Ressources', 'Recettes'), { recursive: true });
 
     await fs.writeFile(
-      path.join(vaultDir, 'Tâches', 'Task1.md'),
+      path.join(vaultDir, 'PARA', 'Tâches', 'Task1.md'),
       '---\nnotion_id: "t1"\ndatabase: taches\nstatus: "To Do"\n---\n\nBody'
     );
     await fs.writeFile(
-      path.join(vaultDir, 'Projets', 'SelfFeed.md'),
+      path.join(vaultDir, 'PARA', 'Projets', 'SelfFeed.md'),
       '---\nnotion_id: "p1"\ndatabase: projets\n---\n\n# SelfFeed'
     );
     await fs.writeFile(
-      path.join(vaultDir, 'Ressources', 'Recettes', 'Poulet.md'),
+      path.join(vaultDir, 'PARA', 'Ressources', 'Recettes', 'Poulet.md'),
       '---\nnotion_id: "r1"\ndatabase: ressources\ntype: Recette\n---\n\nRecipe'
     );
     await fs.writeFile(
-      path.join(vaultDir, 'Tâches', 'NewTask.md'),
+      path.join(vaultDir, 'PARA', 'Tâches', 'NewTask.md'),
       '---\nstatus: "En cours"\n---\n\nNew task without notion_id'
     );
   });

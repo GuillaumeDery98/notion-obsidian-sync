@@ -67,10 +67,18 @@ export interface SyncError {
 }
 
 export const DATABASE_FOLDERS: Record<DatabaseType, string> = {
-  areas: 'Areas',
-  projets: 'Projets',
-  taches: 'Tâches',
-  ressources: 'Ressources',
+  areas: 'PARA/Areas',
+  projets: 'PARA/Projets',
+  taches: 'PARA/Tâches',
+  ressources: 'PARA/Ressources',
+};
+
+export const STATUS_FOLDERS: Record<string, string> = {
+  'To Do': 'To Do',
+  'En cours': 'En cours',
+  'Done': 'Done',
+  'Backlog': 'Backlog',
+  'Canceled': 'Canceled',
 };
 
 export const TYPE_TO_FOLDER: Record<string, string> = {
