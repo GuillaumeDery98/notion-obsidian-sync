@@ -4,7 +4,7 @@ let clientInstance: Client | null = null;
 
 export function getNotionClient(apiKey: string): Client {
   if (!clientInstance) {
-    clientInstance = new Client({ auth: apiKey });
+    clientInstance = new Client({ auth: apiKey, timeoutMs: 120_000 });
   }
   return clientInstance;
 }
@@ -27,7 +27,10 @@ export async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promis
       lastRequestTime = Date.now();
       return await fn();
     } catch (error: any) {
-      const isRetryable = error?.status === 429 || error?.code === 'ECONNRESET' || error?.code === 'ETIMEDOUT';
+      const isRetryable = error?.status === 429
+        || error?.code === 'ECONNRESET'
+        || error?.code === 'ETIMEDOUT'
+        || error?.code === 'notionhq_client_request_timeout';
       if (!isRetryable || attempt === maxRetries) {
         throw error;
       }
