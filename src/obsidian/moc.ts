@@ -3,53 +3,66 @@ import path from 'path';
 import { DATABASE_FOLDERS, TYPE_TO_FOLDER } from '../types.js';
 import { buildFileContent } from './frontmatter.js';
 
+const FOLDER_MOC_ORDER = ['Areas', 'Projets', 'Ressources', 'Tâches'];
+
 export async function generateMocNotes(vaultPath: string): Promise<void> {
   const folderNames = Object.values(DATABASE_FOLDERS);
-
   const mocLinks: Record<string, string[]> = {};
 
   for (const folder of folderNames) {
     const folderPath = path.join(vaultPath, folder);
-    const children = await collectChildren(folderPath, vaultPath, folder);
+    const children = await collectChildren(folderPath, folder);
     mocLinks[folder] = children;
-  }
-
-  for (const [folder, children] of Object.entries(mocLinks)) {
-    const mocName = folder;
-    const content = children
-      .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
-      .map(name => `- [[${name}]]`)
-      .join('\n');
-
-    await writeMocFile(vaultPath, `${folder}/${mocName}.md`, mocName, content);
   }
 
   await generateSubfolderMocs(vaultPath, 'Ressources');
 
-  const subfolderLinks = await getSubfolderMocLinks(vaultPath, 'Ressources');
-  const ressourcesMocContent = [
-    ...subfolderLinks.map(name => `- [[${name}]]`),
-  ].join('\n');
+  for (const [folder, children] of Object.entries(mocLinks)) {
+    let content: string;
 
-  const ressourcesChildren = await collectDirectFiles(
-    path.join(vaultPath, 'Ressources'),
-    'Ressources'
-  );
-  const fullContent = [
-    ressourcesMocContent,
-    ...ressourcesChildren
-      .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
-      .map(name => `- [[${name}]]`),
-  ].filter(Boolean).join('\n');
+    if (folder === 'Ressources') {
+      content = await buildRessourcesMocContent(vaultPath, children);
+    } else {
+      content = children
+        .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+        .map(name => `- [[${name}]]`)
+        .join('\n');
+    }
 
-  await writeMocFile(vaultPath, 'Ressources/Ressources.md', 'Ressources', fullContent);
+    await writeMocFile(
+      vaultPath,
+      `${folder}/${folder}.md`,
+      folder,
+      content,
+      { up: '[[PARA]]' }
+    );
+  }
 
   await generateParaMoc(vaultPath);
 }
 
+async function buildRessourcesMocContent(
+  vaultPath: string,
+  directChildren: string[]
+): Promise<string> {
+  const subfolderLinks = await getSubfolderMocLinks(vaultPath, 'Ressources');
+  const subfolderSection = subfolderLinks
+    .map(name => `- [[${name}]]`)
+    .join('\n');
+
+  const filesSection = directChildren
+    .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+    .map(name => `- [[${name}]]`)
+    .join('\n');
+
+  const parts: string[] = [];
+  if (subfolderSection) parts.push(subfolderSection);
+  if (filesSection) parts.push(filesSection);
+  return parts.join('\n');
+}
+
 async function collectChildren(
   dirPath: string,
-  vaultPath: string,
   parentFolder: string
 ): Promise<string[]> {
   const names: string[] = [];
@@ -110,7 +123,6 @@ async function generateSubfolderMocs(vaultPath: string, parentFolder: string): P
 
       if (files.length === 0) continue;
 
-      const mocName = entry.name;
       const content = files
         .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
         .map(name => `- [[${name}]]`)
@@ -118,9 +130,10 @@ async function generateSubfolderMocs(vaultPath: string, parentFolder: string): P
 
       await writeMocFile(
         vaultPath,
-        `${parentFolder}/${entry.name}/${mocName}.md`,
-        mocName,
-        content
+        `${parentFolder}/${entry.name}/${entry.name}.md`,
+        entry.name,
+        content,
+        { up: `[[${parentFolder}]]` }
       );
     }
   } catch {
@@ -149,8 +162,7 @@ async function getSubfolderMocLinks(vaultPath: string, parentFolder: string): Pr
 }
 
 async function generateParaMoc(vaultPath: string): Promise<void> {
-  const folders = Object.values(DATABASE_FOLDERS);
-  const content = folders
+  const content = FOLDER_MOC_ORDER
     .map(folder => `- [[${folder}]]`)
     .join('\n');
 
@@ -161,7 +173,8 @@ async function writeMocFile(
   vaultPath: string,
   relativePath: string,
   title: string,
-  content: string
+  content: string,
+  extraFrontmatter?: Record<string, any>
 ): Promise<void> {
   const fullPath = path.join(vaultPath, relativePath);
   const dir = path.dirname(fullPath);
@@ -170,6 +183,7 @@ async function writeMocFile(
   const frontmatter: Record<string, any> = {
     moc: true,
     title,
+    ...extraFrontmatter,
   };
 
   const fileContent = buildFileContent(frontmatter, content);

@@ -19,11 +19,17 @@ async function walkDir(dir: string, vaultPath: string, files: ObsidianFile[]): P
       if (entry.name === '.obsidian' || entry.name === '.trash') continue;
       await walkDir(fullPath, vaultPath, files);
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      const raw = await fs.readFile(fullPath, 'utf-8');
+      if (raw.includes('moc: true')) continue;
       const relativePath = path.relative(vaultPath, fullPath);
-      const file = await readFile(fullPath);
-      file.path = relativePath;
-      file.database = detectDatabase(relativePath);
-      files.push(file);
+      const file = parseFrontmatter(raw);
+      const obsFile: ObsidianFile = {
+        path: relativePath,
+        frontmatter: file.frontmatter,
+        content: file.content,
+        database: detectDatabase(relativePath),
+      };
+      files.push(obsFile);
     }
   }
 }
