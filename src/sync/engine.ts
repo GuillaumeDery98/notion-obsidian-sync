@@ -22,6 +22,13 @@ import { scanVault } from '../obsidian/reader.js';
 import { writeObsidianFile, deleteObsidianFile } from '../obsidian/writer.js';
 import { buildPageIndex, resolveObsidianRelations } from './relations.js';
 import { loadState, saveState } from './state.js';
+import {
+  extractFileUrlsFromBlocks,
+  extractFileUrlsFromProperties,
+  downloadPageFiles,
+  replaceFileUrlsInContent,
+  replaceFileUrlsInFrontmatter,
+} from './files.js';
 
 export type SyncAction =
   | { type: 'create-in-obsidian'; notionId: string; page: NotionPage }
@@ -155,6 +162,33 @@ export function getObsidianPathForPage(page: NotionPage, type?: string, status?:
   return `${folder}/${safeTitle}.md`;
 }
 
+async function processPageFiles(
+  page: NotionPage,
+  state: SyncState,
+  vaultPath: string,
+  frontmatter: Record<string, any>,
+  content: string
+): Promise<{ frontmatter: Record<string, any>; content: string }> {
+  const blockFiles = extractFileUrlsFromBlocks(page.blocks);
+  const propFiles = extractFileUrlsFromProperties(page.properties);
+  const allFiles = [...blockFiles, ...propFiles];
+
+  if (allFiles.length === 0) {
+    return { frontmatter, content };
+  }
+
+  const urlMap = await downloadPageFiles(page.id, allFiles, state, vaultPath);
+
+  if (urlMap.size === 0) {
+    return { frontmatter, content };
+  }
+
+  return {
+    frontmatter: replaceFileUrlsInFrontmatter(frontmatter, urlMap),
+    content: replaceFileUrlsInContent(content, urlMap),
+  };
+}
+
 export async function executeSync(config: SyncConfig): Promise<SyncResult> {
   const result: SyncResult = { created: 0, updated: 0, deleted: 0, skipped: 0, errors: [] };
 
@@ -187,8 +221,8 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
         case 'create-in-obsidian': {
           const page = action.page;
           const type = page.database === 'ressources' ? extractType(page.properties) : undefined;
-          const status = page.database === 'taches' ? page.properties.Status?.select?.name : undefined;
-          const fm = extractNotionProperties(page.properties, page.database, pageIndex);
+          const status = page.database === 'taches' ? (page.properties.Status?.status?.name ?? page.properties.Status?.select?.name) : undefined;
+          let fm = extractNotionProperties(page.properties, page.database, pageIndex);
           fm.notion_id = page.id;
           fm.database = page.database;
           fm.title = page.title;
@@ -197,6 +231,11 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           if (page.title.length > MAX_FILENAME_LENGTH) {
             body = `# ${page.title}\n\n${body}`;
           }
+
+          const processed = await processPageFiles(page, state, config.obsidianVaultPath, fm, body);
+          fm = processed.frontmatter;
+          body = processed.content;
+
           const obsPath = getObsidianPathForPage(page, type, status);
 
           await writeObsidianFile(config.obsidianVaultPath, {
@@ -226,9 +265,9 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
         case 'update-in-obsidian': {
           const page = action.page;
           const type = page.database === 'ressources' ? extractType(page.properties) : undefined;
-          const status = page.database === 'taches' ? page.properties.Status?.select?.name : undefined;
+          const status = page.database === 'taches' ? (page.properties.Status?.status?.name ?? page.properties.Status?.select?.name) : undefined;
           const existingState = state.pages[page.id];
-          const fm = extractNotionProperties(page.properties, page.database, pageIndex);
+          let fm = extractNotionProperties(page.properties, page.database, pageIndex);
           fm.notion_id = page.id;
           fm.database = page.database;
           fm.title = page.title;
@@ -237,6 +276,11 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           if (page.title.length > MAX_FILENAME_LENGTH) {
             body = `# ${page.title}\n\n${body}`;
           }
+
+          const processed = await processPageFiles(page, state, config.obsidianVaultPath, fm, body);
+          fm = processed.frontmatter;
+          body = processed.content;
+
           const obsPath = getObsidianPathForPage(page, type, status);
 
           if (existingState && existingState.obsidianPath !== obsPath) {
