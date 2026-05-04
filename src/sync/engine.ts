@@ -77,6 +77,10 @@ export async function computeSyncActions(
     if (notionId) {
       const pageState = state.pages[notionId];
       if (pageState && lastSync) {
+        if (file.path !== pageState.obsidianPath) {
+          pageState.obsidianPath = file.path;
+        }
+
         const fmTime = file.frontmatter?.derniere_modification as string | undefined;
         let modified = false;
 
@@ -118,6 +122,14 @@ export async function computeSyncActions(
   return actions;
 }
 
+function detectStatusFromPath(filePath: string): string | undefined {
+  const parts = filePath.split('/');
+  const tachesIdx = parts.indexOf('Tâches');
+  if (tachesIdx === -1 || tachesIdx + 1 >= parts.length) return undefined;
+  const subfolder = parts[tachesIdx + 1];
+  if (STATUS_FOLDERS[subfolder]) return subfolder;
+  return undefined;
+}
 const MAX_FILENAME_LENGTH = 80;
 
 function truncateTitle(title: string): string {
@@ -227,6 +239,13 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           }
           const obsPath = getObsidianPathForPage(page, type, status);
 
+          if (existingState && existingState.obsidianPath !== obsPath) {
+            try {
+              await deleteObsidianFile(config.obsidianVaultPath, existingState.obsidianPath);
+            } catch {
+            }
+          }
+
           await writeObsidianFile(config.obsidianVaultPath, {
             path: obsPath,
             frontmatter: fm,
@@ -277,6 +296,15 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
 
         case 'update-in-notion': {
           const file = action.file;
+          if (file.database === 'taches') {
+            const statusFromFolder = detectStatusFromPath(file.path);
+            if (statusFromFolder && !file.frontmatter.status) {
+              file.frontmatter.status = statusFromFolder;
+            }
+            if (statusFromFolder && file.frontmatter.status !== statusFromFolder) {
+              file.frontmatter.status = statusFromFolder;
+            }
+          }
           await updateNotionPage(client, action.notionId, file, file.database!, resolveWikilink);
 
           const now = new Date().toISOString();
