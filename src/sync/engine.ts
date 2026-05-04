@@ -102,15 +102,24 @@ export function computeSyncActions(
   return actions;
 }
 
+const MAX_FILENAME_LENGTH = 80;
+
+function truncateTitle(title: string): string {
+  const sanitized = title.replace(/[\/\\:*?"<>|]/g, '_');
+  if (sanitized.length <= MAX_FILENAME_LENGTH) return sanitized;
+  return sanitized.substring(0, MAX_FILENAME_LENGTH).trimEnd();
+}
+
 export function getObsidianPathForPage(page: NotionPage, type?: string): string {
   const folder = DATABASE_FOLDERS[page.database];
+  const safeTitle = truncateTitle(page.title);
 
   if (page.database === 'ressources' && type) {
     const subfolder = TYPE_TO_FOLDER[type] || type;
-    return `${folder}/${subfolder}/${page.title}.md`;
+    return `${folder}/${subfolder}/${safeTitle}.md`;
   }
 
-  return `${folder}/${page.title}.md`;
+  return `${folder}/${safeTitle}.md`;
 }
 
 export async function executeSync(config: SyncConfig): Promise<SyncResult> {
@@ -148,7 +157,11 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           const fm = extractNotionProperties(page.properties, page.database, pageIndex);
           fm.notion_id = page.id;
           fm.database = page.database;
-          const body = notionToMarkdown(page.blocks);
+          fm.title = page.title;
+          let body = notionToMarkdown(page.blocks);
+          if (page.title.length > MAX_FILENAME_LENGTH) {
+            body = `# ${page.title}\n\n${body}`;
+          }
           const obsPath = getObsidianPathForPage(page, type);
 
           await writeObsidianFile(config.obsidianVaultPath, {
@@ -182,7 +195,11 @@ export async function executeSync(config: SyncConfig): Promise<SyncResult> {
           const fm = extractNotionProperties(page.properties, page.database, pageIndex);
           fm.notion_id = page.id;
           fm.database = page.database;
-          const body = notionToMarkdown(page.blocks);
+          fm.title = page.title;
+          let body = notionToMarkdown(page.blocks);
+          if (page.title.length > MAX_FILENAME_LENGTH) {
+            body = `# ${page.title}\n\n${body}`;
+          }
           const obsPath = getObsidianPathForPage(page, type);
 
           await writeObsidianFile(config.obsidianVaultPath, {
