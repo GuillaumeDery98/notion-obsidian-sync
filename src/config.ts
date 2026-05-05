@@ -1,24 +1,37 @@
 import dotenv from 'dotenv';
-import yaml from 'js-yaml';
-import fs from 'fs/promises';
 import path from 'path';
 import { SyncConfig } from './types.js';
 
 dotenv.config();
 
-export async function loadConfig(): Promise<SyncConfig> {
-  const configPath = path.resolve(process.cwd(), 'config.yaml');
-  const raw = await fs.readFile(configPath, 'utf-8');
-  const parsed = yaml.load(raw) as any;
-
+export function loadConfig(): SyncConfig {
   const apiKey = process.env.NOTION_API_KEY;
   if (!apiKey) {
     throw new Error('NOTION_API_KEY is required in .env');
   }
 
+  const vault = process.env.VAULT;
+  if (!vault) {
+    throw new Error('VAULT is required in .env');
+  }
+
+  const areas = process.env.AREAS;
+  const projets = process.env.PROJETS;
+  const taches = process.env.TACHES;
+  const ressources = process.env.RESSOURCES;
+
+  if (!areas || !projets || !taches || !ressources) {
+    throw new Error('AREAS, PROJETS, TACHES, and RESSOURCES are required in .env');
+  }
+
   return {
     notionApiKey: apiKey,
-    obsidianVaultPath: path.resolve(process.cwd(), parsed.obsidian.vault_path),
-    notionDatabases: parsed.notion.databases,
+    obsidianVaultPath: path.resolve(process.cwd(), vault),
+    notionDatabases: {
+      areas,
+      projets,
+      taches,
+      ressources,
+    },
   };
 }

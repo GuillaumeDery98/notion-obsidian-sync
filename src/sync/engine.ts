@@ -83,46 +83,69 @@ export async function computeSyncActions(
 
     if (notionId) {
       const pageState = state.pages[notionId];
+      let shouldUpdate = false;
+
       if (pageState && lastSync) {
         if (file.path !== pageState.obsidianPath) {
           pageState.obsidianPath = file.path;
         }
 
         const fmTime = file.frontmatter?.derniere_modification as string | undefined;
-        let modified = false;
 
         if (fmTime) {
-          modified = fmTime > pageState.lastSync;
+          shouldUpdate = fmTime > pageState.lastSync;
         } else {
           try {
             const stat = await fs.stat(path.join(vaultPath, file.path));
-            modified = stat.mtime.toISOString() > pageState.lastSync;
+            shouldUpdate = stat.mtime.toISOString() > pageState.lastSync;
           } catch {
-            modified = true;
+            shouldUpdate = true;
           }
         }
+      } else {
+        // No sync state for this notion_id — update unconditionally
+        // to avoid losing changes when state was lost or reset
+        shouldUpdate = true;
+      }
 
-        if (modified) {
-          const alreadyUpdatingFromNotion = actions.some(a => {
-            if (a.type !== 'update-in-obsidian') return false;
-            return a.notionId === notionId;
+      if (shouldUpdate) {
+        const alreadyUpdatingFromNotion = actions.some(a => {
+          if (a.type !== 'update-in-obsidian') return false;
+          return a.notionId === notionId;
+        });
+        if (!alreadyUpdatingFromNotion) {
+          actions.push({
+            type: 'update-in-notion',
+            notionId,
+            path: file.path,
+            file,
           });
-          if (!alreadyUpdatingFromNotion) {
-            actions.push({
-              type: 'update-in-notion',
-              notionId,
-              path: file.path,
-              file,
-            });
-          }
         }
       }
     } else if (file.database) {
-      actions.push({
-        type: 'create-in-notion',
-        path: file.path,
-        file,
-      });
+      // No notion_id in frontmatter — match by title against existing Notion
+      // pages to prevent duplicates
+      const fileTitle = path.basename(file.path, '.md');
+      const existingPage = notionPages.find(p =>
+        p.title === fileTitle && p.database === file.database
+      );
+
+      if (existingPage) {
+        // Found matching Notion page by title — update instead of creating
+        file.frontmatter.notion_id = existingPage.id;
+        actions.push({
+          type: 'update-in-notion',
+          notionId: existingPage.id,
+          path: file.path,
+          file,
+        });
+      } else {
+        actions.push({
+          type: 'create-in-notion',
+          path: file.path,
+          file,
+        });
+      }
     }
   }
 
@@ -200,11 +223,9 @@ export async function executeSync(config: SyncConfig, direction: SyncDirection =
   let notionPages: NotionPage[] = [];
   let obsidianFiles: ObsidianFile[] = [];
 
-  if (direction === 'both' || direction === 'notion-to-obsidian') {
-    console.log('Fetching Notion pages...');
-    notionPages = await fetchAllDatabases(client, config.notionDatabases);
-    console.log(`Found ${notionPages.length} Notion pages`);
-  }
+  console.log('Fetching Notion pages...');
+  notionPages = await fetchAllDatabases(client, config.notionDatabases);
+  console.log(`Found ${notionPages.length} Notion pages`);
 
   const pageIndex = buildPageIndex(notionPages);
 
